@@ -5,6 +5,7 @@
 
 import { generateText, stepCountIs } from "ai"
 import { getAIModel } from "@/lib/ai"
+import { answerLatestMarketoProgramQuestion } from "@/lib/integrations/marketo/latest-program"
 import { getAllTools } from "@/lib/tools"
 import { CLI_SYSTEM_PROMPT } from "@/lib/agent-config"
 
@@ -18,6 +19,16 @@ export async function POST(req: Request) {
       role: m.role as "user" | "assistant",
       content: m.content,
     }))
+
+    const latestUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content
+    if (latestUserMessage) {
+      const directMarketoAnswer = await answerLatestMarketoProgramQuestion(latestUserMessage)
+      if (directMarketoAnswer) {
+        return new Response(directMarketoAnswer, {
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        })
+      }
+    }
 
     const { text } = await generateText({
       model: getAIModel(),

@@ -23,6 +23,7 @@ import {
   recordsToCSV,
 } from "@/lib/slack"
 import { fileIssueFromMessage } from "@/lib/integrations/linear"
+import { answerLatestMarketoProgramQuestion } from "@/lib/integrations/marketo/latest-program"
 import { isAuthorizedUser, getApproverGroupMention } from "@/lib/permissions"
 import { storePendingApproval } from "@/lib/approval-store"
 
@@ -383,6 +384,14 @@ async function processMessage(
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [],
   authContext: { isAuthorized: boolean; channel: string; threadTs: string; userId: string }
 ): Promise<ProcessResult> {
+  const directMarketoAnswer = await answerLatestMarketoProgramQuestion(text)
+  if (directMarketoAnswer) {
+    return {
+      text: directMarketoAnswer,
+      records: null,
+    }
+  }
+
   const ctx: RequestContext = { queryResults: null }
   const tools = getToolsForRequest(
     authContext.isAuthorized,
