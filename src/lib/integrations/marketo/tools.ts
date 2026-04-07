@@ -122,6 +122,39 @@ export const marketoTools = {
     },
   }),
 
+  getLatestMarketoProgram: tool({
+    description:
+      "Get the single most recently created Marketo program. Use this for questions like 'what is the latest/most recent Marketo program created?' Optional exact type and channel filters let you narrow to email programs, newsletters, webinars, and similar program categories.",
+    inputSchema: z.object({
+      type: z
+        .string()
+        .optional()
+        .describe(
+          "Optional exact Marketo program type filter, such as 'Email', 'Default', 'Engagement', or 'EventWithWebinar'."
+        ),
+      channel: z
+        .string()
+        .optional()
+        .describe(
+          "Optional exact Marketo channel filter, such as 'Email Send', 'Newsletter', 'Email Blast', or 'Webinar'."
+        ),
+    }),
+    execute: async ({ type, channel }) => {
+      try {
+        const results = await mk.getPrograms(1, { type, channel })
+        return { success: true as const, data: results }
+      } catch (error) {
+        return {
+          success: false as const,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Get latest program failed",
+        }
+      }
+    },
+  }),
+
   listMarketoPrograms: tool({
     description:
       "List programs in Marketo ordered by newest createdAt first. Supports limiting results and filtering by program type or channel so you can fetch the latest matching program.",

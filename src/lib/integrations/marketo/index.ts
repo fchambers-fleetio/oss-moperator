@@ -20,6 +20,7 @@ export const marketoIntegration: Integration = {
     "Search Marketo for leads at Acme Corp",
     "What fields are available on the Marketo lead object?",
     "Show me all Marketo static lists",
+    "What was the most recent Marketo Email Program created?",
     "Add these leads to the webinar list",
     "Trigger the welcome email campaign for lead 12345",
   ],
