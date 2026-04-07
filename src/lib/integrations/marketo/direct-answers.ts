@@ -19,6 +19,23 @@ function isMarketoConfigured(): boolean {
   )
 }
 
+function isMarketoDirectDebugEnabled(): boolean {
+  return process.env.MARKETO_DEBUG === "true"
+}
+
+function logMarketoDirectDebug(message: string, payload?: unknown) {
+  if (!isMarketoDirectDebugEnabled()) {
+    return
+  }
+
+  if (payload === undefined) {
+    console.log(`[Marketo Direct] ${message}`)
+    return
+  }
+
+  console.log(`[Marketo Direct] ${message}`, JSON.stringify(payload, null, 2))
+}
+
 function formatDate(value: unknown): string {
   if (typeof value !== "string") {
     return "Unknown"
@@ -129,12 +146,18 @@ async function answerLatestProgramQuestion(text: string): Promise<string | null>
     return null
   }
 
-  const response = await getPrograms(1, parseProgramFilters(text))
+  const filters = parseProgramFilters(text)
+  logMarketoDirectDebug("Latest program intent detected", { text, filters })
+
+  const response = await getPrograms(1, filters)
   const result = Array.isArray(response.result) ? response.result[0] : null
 
   if (!result || typeof result !== "object") {
+    logMarketoDirectDebug("Latest program query returned no match")
     return "I couldn't find a matching Marketo program."
   }
+
+  logMarketoDirectDebug("Latest program selected", result)
 
   return ["*Most Recent Marketo Program Created:*", formatProgram(result as Record<string, unknown>)].join("\n")
 }
@@ -292,10 +315,11 @@ export async function answerDirectMarketoQuestion(text: string): Promise<string 
   }
 
   if (looksLikeMarketoWriteIntent(text)) {
+    logMarketoDirectDebug("Skipping direct Marketo answer because write intent was detected", { text })
     return null
   }
 
-  return (
+  const answer = (
     (await answerLatestProgramQuestion(text)) ??
     (await answerLeadLookupQuestion(text)) ??
     (await answerProgramListQuestion(text)) ??
@@ -303,4 +327,12 @@ export async function answerDirectMarketoQuestion(text: string): Promise<string 
     (await answerListQuestion(text)) ??
     (await answerCampaignQuestion(text))
   )
+
+  if (answer) {
+    logMarketoDirectDebug("Direct Marketo answer produced a response")
+  } else {
+    logMarketoDirectDebug("No direct Marketo handler matched", { text })
+  }
+
+  return answer
 }
