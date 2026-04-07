@@ -21,6 +21,30 @@ type MarketoResponse = {
   warnings?: unknown[]
 }
 
+function getSortableTimestamp(value: unknown): number {
+  if (!value || typeof value !== "object") {
+    return Number.NEGATIVE_INFINITY
+  }
+
+  const updatedAt = "updatedAt" in value ? Date.parse(String(value.updatedAt)) : Number.NaN
+  if (!Number.isNaN(updatedAt)) {
+    return updatedAt
+  }
+
+  const createdAt = "createdAt" in value ? Date.parse(String(value.createdAt)) : Number.NaN
+  if (!Number.isNaN(createdAt)) {
+    return createdAt
+  }
+
+  return Number.NEGATIVE_INFINITY
+}
+
+function sortNewestFirst(results: unknown[]): unknown[] {
+  return [...results].sort(
+    (a, b) => getSortableTimestamp(b) - getSortableTimestamp(a)
+  )
+}
+
 function getConfig() {
   const clientId = process.env.MARKETO_CLIENT_ID
   const clientSecret = process.env.MARKETO_CLIENT_SECRET
@@ -122,7 +146,7 @@ async function marketoFetchAllLeadPages(
         ...page,
         nextPageToken: undefined,
         moreResult: false,
-        result: results,
+        result: sortNewestFirst(results),
       }
     }
 
@@ -150,7 +174,7 @@ async function marketoFetchAllAssetPages(
     if (pageResults.length < MARKETO_ASSET_PAGE_SIZE) {
       return {
         ...page,
-        result: results,
+        result: sortNewestFirst(results),
       }
     }
 
