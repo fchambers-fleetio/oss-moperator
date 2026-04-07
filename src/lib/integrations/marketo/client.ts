@@ -10,6 +10,8 @@ let _tokenExpiresAt = 0
 
 const MARKETO_LEAD_BATCH_SIZE = 300
 const MARKETO_ASSET_PAGE_SIZE = 200
+const MARKETO_DEFAULT_RESULT_LIMIT = 25
+const MARKETO_LIST_MEMBER_RESULT_LIMIT = 100
 
 type MarketoResponse = {
   errors?: unknown[]
@@ -60,6 +62,20 @@ function sortNewestFirst(results: unknown[]): unknown[] {
   return [...results].sort(
     (a, b) => getSortableTimestamp(b) - getSortableTimestamp(a)
   )
+}
+
+function truncateResults(
+  response: MarketoResponse,
+  limit: number
+): MarketoResponse {
+  if (!Array.isArray(response.result)) {
+    return response
+  }
+
+  return {
+    ...response,
+    result: response.result.slice(0, limit),
+  }
 }
 
 function getConfig() {
@@ -221,13 +237,15 @@ async function marketoFetchAllAssetPages(
 
 export async function getLeads(
   filterType: string,
-  filterValues: string[]
+  filterValues: string[],
+  limit = MARKETO_DEFAULT_RESULT_LIMIT
 ): Promise<MarketoResponse> {
   const params = new URLSearchParams({
     filterType,
     filterValues: filterValues.join(","),
   })
-  return marketoFetchAllLeadPages("/rest/v1/leads.json", params)
+  const response = await marketoFetchAllLeadPages("/rest/v1/leads.json", params)
+  return truncateResults(response, limit)
 }
 
 export async function getLead(id: string): Promise<unknown> {
@@ -262,12 +280,22 @@ export async function describeLeads(): Promise<unknown> {
 
 // ─── Lists ────────────────────────────────────────────────────────────────────
 
-export async function getLists(): Promise<MarketoResponse> {
-  return marketoFetchAllAssetPages("/rest/v1/lists.json")
+export async function getLists(
+  limit = MARKETO_DEFAULT_RESULT_LIMIT
+): Promise<MarketoResponse> {
+  const response = await marketoFetchAllAssetPages("/rest/v1/lists.json")
+  return truncateResults(response, limit)
 }
 
-export async function getListLeads(listId: string): Promise<MarketoResponse> {
-  return marketoFetchAllLeadPages(`/rest/v1/lists/${listId}/leads.json`, new URLSearchParams())
+export async function getListLeads(
+  listId: string,
+  limit = MARKETO_LIST_MEMBER_RESULT_LIMIT
+): Promise<MarketoResponse> {
+  const response = await marketoFetchAllLeadPages(
+    `/rest/v1/lists/${listId}/leads.json`,
+    new URLSearchParams()
+  )
+  return truncateResults(response, limit)
 }
 
 export async function addLeadsToList(
@@ -318,14 +346,23 @@ export async function triggerCampaign(
 
 // ─── Assets ───────────────────────────────────────────────────────────────────
 
-export async function getPrograms(): Promise<MarketoResponse> {
-  return marketoFetchAllAssetPages("/rest/asset/v1/programs.json")
+export async function getPrograms(
+  limit = MARKETO_DEFAULT_RESULT_LIMIT
+): Promise<MarketoResponse> {
+  const response = await marketoFetchAllAssetPages("/rest/asset/v1/programs.json")
+  return truncateResults(response, limit)
 }
 
-export async function getEmails(): Promise<MarketoResponse> {
-  return marketoFetchAllAssetPages("/rest/asset/v1/emails.json")
+export async function getEmails(
+  limit = MARKETO_DEFAULT_RESULT_LIMIT
+): Promise<MarketoResponse> {
+  const response = await marketoFetchAllAssetPages("/rest/asset/v1/emails.json")
+  return truncateResults(response, limit)
 }
 
-export async function getFolders(): Promise<MarketoResponse> {
-  return marketoFetchAllAssetPages("/rest/asset/v1/folders.json")
+export async function getFolders(
+  limit = MARKETO_DEFAULT_RESULT_LIMIT
+): Promise<MarketoResponse> {
+  const response = await marketoFetchAllAssetPages("/rest/asset/v1/folders.json")
+  return truncateResults(response, limit)
 }
