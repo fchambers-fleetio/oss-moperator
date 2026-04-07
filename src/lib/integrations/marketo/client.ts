@@ -21,6 +21,23 @@ type MarketoResponse = {
   warnings?: unknown[]
 }
 
+function isMarketoDebugEnabled(): boolean {
+  return process.env.MARKETO_DEBUG === "true"
+}
+
+function logMarketoDebug(message: string, payload?: unknown) {
+  if (!isMarketoDebugEnabled()) {
+    return
+  }
+
+  if (payload === undefined) {
+    console.log(`[Marketo Debug] ${message}`)
+    return
+  }
+
+  console.log(`[Marketo Debug] ${message}`, JSON.stringify(payload, null, 2))
+}
+
 function getSortableTimestamp(value: unknown): number {
   if (!value || typeof value !== "object") {
     return Number.NEGATIVE_INFINITY
@@ -112,7 +129,9 @@ async function marketoFetch<T = unknown>(
     throw new Error(`Marketo API error ${res.status}: ${body}`)
   }
 
-  return res.json() as Promise<T>
+  const data = await res.json()
+  logMarketoDebug(`Response for ${path}`, data)
+  return data as T
 }
 
 function appendQuery(path: string, params: URLSearchParams): string {
@@ -126,6 +145,7 @@ async function marketoFetchAllLeadPages(
 ): Promise<MarketoResponse> {
   const results: unknown[] = []
   let nextPageToken: string | undefined
+  let pageNumber = 1
 
   while (true) {
     const pageParams = new URLSearchParams(params)
@@ -136,6 +156,13 @@ async function marketoFetchAllLeadPages(
     }
 
     const page = await marketoFetch<MarketoResponse>(appendQuery(path, pageParams))
+    logMarketoDebug(`Lead page ${pageNumber} summary for ${path}`, {
+      batchSize: pageParams.get("batchSize"),
+      nextPageTokenUsed: pageParams.get("nextPageToken"),
+      returned: Array.isArray(page.result) ? page.result.length : 0,
+      moreResult: page.moreResult,
+      nextPageToken: page.nextPageToken,
+    })
 
     if (Array.isArray(page.result)) {
       results.push(...page.result)
@@ -151,6 +178,7 @@ async function marketoFetchAllLeadPages(
     }
 
     nextPageToken = page.nextPageToken
+    pageNumber += 1
   }
 }
 
@@ -160,6 +188,7 @@ async function marketoFetchAllAssetPages(
 ): Promise<MarketoResponse> {
   const results: unknown[] = []
   let offset = 0
+  let pageNumber = 1
 
   while (true) {
     const pageParams = new URLSearchParams(params)
@@ -168,6 +197,11 @@ async function marketoFetchAllAssetPages(
 
     const page = await marketoFetch<MarketoResponse>(appendQuery(path, pageParams))
     const pageResults = Array.isArray(page.result) ? page.result : []
+    logMarketoDebug(`Asset page ${pageNumber} summary for ${path}`, {
+      maxReturn: pageParams.get("maxReturn"),
+      offset,
+      returned: pageResults.length,
+    })
 
     results.push(...pageResults)
 
@@ -179,6 +213,7 @@ async function marketoFetchAllAssetPages(
     }
 
     offset += pageResults.length
+    pageNumber += 1
   }
 }
 
