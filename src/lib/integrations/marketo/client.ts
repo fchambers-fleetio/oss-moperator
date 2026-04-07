@@ -8,6 +8,19 @@
 let _accessToken: string | null = null
 let _tokenExpiresAt = 0
 
+const MARKETO_LEAD_BATCH_SIZE = 300
+const MARKETO_ASSET_PAGE_SIZE = 200
+
+type MarketoResponse = {
+  errors?: unknown[]
+  moreResult?: boolean
+  nextPageToken?: string
+  requestId?: string
+  result?: unknown[]
+  success: boolean
+  warnings?: unknown[]
+}
+
 function getConfig() {
   const clientId = process.env.MARKETO_CLIENT_ID
   const clientSecret = process.env.MARKETO_CLIENT_SECRET
@@ -54,10 +67,10 @@ async function getAccessToken(): Promise<string> {
   return _accessToken
 }
 
-async function marketoFetch(
+async function marketoFetch<T = unknown>(
   path: string,
   options: RequestInit = {}
-): Promise<unknown> {
+): Promise<T> {
   const token = await getAccessToken()
   const { baseUrl } = getConfig()
 
@@ -75,7 +88,74 @@ async function marketoFetch(
     throw new Error(`Marketo API error ${res.status}: ${body}`)
   }
 
-  return res.json()
+  return res.json() as Promise<T>
+}
+
+function appendQuery(path: string, params: URLSearchParams): string {
+  const query = params.toString()
+  return query ? `${path}?${query}` : path
+}
+
+async function marketoFetchAllLeadPages(
+  path: string,
+  params: URLSearchParams
+): Promise<MarketoResponse> {
+  const results: unknown[] = []
+  let nextPageToken: string | undefined
+
+  while (true) {
+    const pageParams = new URLSearchParams(params)
+    pageParams.set("batchSize", String(MARKETO_LEAD_BATCH_SIZE))
+
+    if (nextPageToken) {
+      pageParams.set("nextPageToken", nextPageToken)
+    }
+
+    const page = await marketoFetch<MarketoResponse>(appendQuery(path, pageParams))
+
+    if (Array.isArray(page.result)) {
+      results.push(...page.result)
+    }
+
+    if (!page.moreResult || !page.nextPageToken) {
+      return {
+        ...page,
+        nextPageToken: undefined,
+        moreResult: false,
+        result: results,
+      }
+    }
+
+    nextPageToken = page.nextPageToken
+  }
+}
+
+async function marketoFetchAllAssetPages(
+  path: string,
+  params: URLSearchParams = new URLSearchParams()
+): Promise<MarketoResponse> {
+  const results: unknown[] = []
+  let offset = 0
+
+  while (true) {
+    const pageParams = new URLSearchParams(params)
+    pageParams.set("offset", String(offset))
+    pageParams.set("maxReturn", String(MARKETO_ASSET_PAGE_SIZE))
+
+    const page = await marketoFetch<MarketoResponse>(appendQuery(path, pageParams))
+    const pageResults = Array.isArray(page.result) ? page.result : []
+
+    results.push(...pageResults)
+
+    if (pageResults.length < MARKETO_ASSET_PAGE_SIZE) {
+      return {
+        ...page,
+        result: results,
+      }
+    }
+
+    offset += pageResults.length
+  }
 }
 
 // ─── Leads ────────────────────────────────────────────────────────────────────
@@ -83,12 +163,12 @@ async function marketoFetch(
 export async function getLeads(
   filterType: string,
   filterValues: string[]
-): Promise<unknown> {
+): Promise<MarketoResponse> {
   const params = new URLSearchParams({
     filterType,
     filterValues: filterValues.join(","),
   })
-  return marketoFetch(`/rest/v1/leads.json?${params}`)
+  return marketoFetchAllLeadPages("/rest/v1/leads.json", params)
 }
 
 export async function getLead(id: string): Promise<unknown> {
@@ -123,12 +203,12 @@ export async function describeLeads(): Promise<unknown> {
 
 // ─── Lists ────────────────────────────────────────────────────────────────────
 
-export async function getLists(): Promise<unknown> {
-  return marketoFetch("/rest/v1/lists.json")
+export async function getLists(): Promise<MarketoResponse> {
+  return marketoFetchAllAssetPages("/rest/v1/lists.json")
 }
 
-export async function getListLeads(listId: string): Promise<unknown> {
-  return marketoFetch(`/rest/v1/lists/${listId}/leads.json`)
+export async function getListLeads(listId: string): Promise<MarketoResponse> {
+  return marketoFetchAllLeadPages(`/rest/v1/lists/${listId}/leads.json`, new URLSearchParams())
 }
 
 export async function addLeadsToList(
@@ -179,14 +259,14 @@ export async function triggerCampaign(
 
 // ─── Assets ───────────────────────────────────────────────────────────────────
 
-export async function getPrograms(): Promise<unknown> {
-  return marketoFetch("/rest/asset/v1/programs.json")
+export async function getPrograms(): Promise<MarketoResponse> {
+  return marketoFetchAllAssetPages("/rest/asset/v1/programs.json")
 }
 
-export async function getEmails(): Promise<unknown> {
-  return marketoFetch("/rest/asset/v1/emails.json")
+export async function getEmails(): Promise<MarketoResponse> {
+  return marketoFetchAllAssetPages("/rest/asset/v1/emails.json")
 }
 
-export async function getFolders(): Promise<unknown> {
-  return marketoFetch("/rest/asset/v1/folders.json")
+export async function getFolders(): Promise<MarketoResponse> {
+  return marketoFetchAllAssetPages("/rest/asset/v1/folders.json")
 }
