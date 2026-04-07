@@ -40,17 +40,31 @@ function logMarketoDebug(message: string, payload?: unknown) {
   console.log(`[Marketo Debug] ${message}`, JSON.stringify(payload, null, 2))
 }
 
+function parseMarketoTimestamp(value: unknown): number {
+  if (typeof value !== "string") {
+    return Number.NaN
+  }
+
+  // Marketo sometimes returns timestamps like "2026-04-06T19:32:59Z+0000".
+  // Normalize them to a standard ISO-8601 shape before parsing.
+  const normalized = value
+    .replace(/Z[+-]\d{4}$/, "Z")
+    .replace(/([+-]\d{2})(\d{2})$/, "$1:$2")
+
+  return Date.parse(normalized)
+}
+
 function getSortableTimestamp(value: unknown): number {
   if (!value || typeof value !== "object") {
     return Number.NEGATIVE_INFINITY
   }
 
-  const updatedAt = "updatedAt" in value ? Date.parse(String(value.updatedAt)) : Number.NaN
+  const updatedAt = "updatedAt" in value ? parseMarketoTimestamp(value.updatedAt) : Number.NaN
   if (!Number.isNaN(updatedAt)) {
     return updatedAt
   }
 
-  const createdAt = "createdAt" in value ? Date.parse(String(value.createdAt)) : Number.NaN
+  const createdAt = "createdAt" in value ? parseMarketoTimestamp(value.createdAt) : Number.NaN
   if (!Number.isNaN(createdAt)) {
     return createdAt
   }
@@ -69,7 +83,7 @@ function getCreatedAtTimestamp(value: unknown): number {
     return Number.NEGATIVE_INFINITY
   }
 
-  const createdAt = Date.parse(String(value.createdAt))
+  const createdAt = parseMarketoTimestamp(value.createdAt)
   return Number.isNaN(createdAt) ? Number.NEGATIVE_INFINITY : createdAt
 }
 
