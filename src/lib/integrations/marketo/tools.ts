@@ -123,11 +123,32 @@ export const marketoTools = {
   }),
 
   listMarketoPrograms: tool({
-    description: "List programs in Marketo (email programs, engagement programs, events, etc.).",
-    inputSchema: z.object({}),
-    execute: async () => {
+    description:
+      "List programs in Marketo ordered by newest createdAt first. Supports limiting results and filtering by program type or channel so you can fetch the latest matching program.",
+    inputSchema: z.object({
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Maximum number of programs to return. Use 1 to get the latest match."),
+      type: z
+        .string()
+        .optional()
+        .describe(
+          "Optional exact Marketo program type filter, such as 'Email', 'Default', 'Engagement', or 'EventWithWebinar'."
+        ),
+      channel: z
+        .string()
+        .optional()
+        .describe(
+          "Optional exact Marketo channel filter, such as 'Email Send', 'Newsletter', 'Email Blast', or 'Webinar'."
+        ),
+    }),
+    execute: async ({ limit, type, channel }) => {
       try {
-        const results = await mk.getPrograms()
+        const results = await mk.getPrograms(limit, { type, channel })
         return { success: true as const, data: results }
       } catch (error) {
         return {

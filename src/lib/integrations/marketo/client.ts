@@ -64,6 +64,21 @@ function sortNewestFirst(results: unknown[]): unknown[] {
   )
 }
 
+function getCreatedAtTimestamp(value: unknown): number {
+  if (!value || typeof value !== "object" || !("createdAt" in value)) {
+    return Number.NEGATIVE_INFINITY
+  }
+
+  const createdAt = Date.parse(String(value.createdAt))
+  return Number.isNaN(createdAt) ? Number.NEGATIVE_INFINITY : createdAt
+}
+
+function sortByCreatedAtNewestFirst(results: unknown[]): unknown[] {
+  return [...results].sort(
+    (a, b) => getCreatedAtTimestamp(b) - getCreatedAtTimestamp(a)
+  )
+}
+
 function truncateResults(
   response: MarketoResponse,
   limit: number
@@ -347,10 +362,40 @@ export async function triggerCampaign(
 // ─── Assets ───────────────────────────────────────────────────────────────────
 
 export async function getPrograms(
-  limit = MARKETO_DEFAULT_RESULT_LIMIT
+  limit = MARKETO_DEFAULT_RESULT_LIMIT,
+  filters?: {
+    channel?: string
+    type?: string
+  }
 ): Promise<MarketoResponse> {
   const response = await marketoFetchAllAssetPages("/rest/asset/v1/programs.json")
-  return truncateResults(response, limit)
+  const results = Array.isArray(response.result) ? response.result : []
+
+  const filteredResults = results.filter((result) => {
+    if (!result || typeof result !== "object") {
+      return false
+    }
+
+    const typedResult = result as Record<string, unknown>
+
+    if (filters?.channel && typedResult.channel !== filters.channel) {
+      return false
+    }
+
+    if (filters?.type && typedResult.type !== filters.type) {
+      return false
+    }
+
+    return true
+  })
+
+  return truncateResults(
+    {
+      ...response,
+      result: sortByCreatedAtNewestFirst(filteredResults),
+    },
+    limit
+  )
 }
 
 export async function getEmails(
