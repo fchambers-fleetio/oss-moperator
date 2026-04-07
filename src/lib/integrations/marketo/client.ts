@@ -299,7 +299,13 @@ export async function getLists(
   limit = MARKETO_DEFAULT_RESULT_LIMIT
 ): Promise<MarketoResponse> {
   const response = await marketoFetchAllAssetPages("/rest/v1/lists.json")
-  return truncateResults(response, limit)
+  return truncateResults(
+    {
+      ...response,
+      result: sortByCreatedAtNewestFirst(Array.isArray(response.result) ? response.result : []),
+    },
+    limit
+  )
 }
 
 export async function getListLeads(
@@ -402,7 +408,13 @@ export async function getEmails(
   limit = MARKETO_DEFAULT_RESULT_LIMIT
 ): Promise<MarketoResponse> {
   const response = await marketoFetchAllAssetPages("/rest/asset/v1/emails.json")
-  return truncateResults(response, limit)
+  return truncateResults(
+    {
+      ...response,
+      result: sortByCreatedAtNewestFirst(Array.isArray(response.result) ? response.result : []),
+    },
+    limit
+  )
 }
 
 export async function getFolders(
